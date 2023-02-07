@@ -313,15 +313,15 @@ void FileGenerator::GenerateHeader(io::Printer* p) const {
 void FileGenerator::GenerateSource(io::Printer* p) const {
   std::vector<const FileDescriptor*> deps_with_extensions =
       common_state_->CollectMinimalFileDepsContainingExtensions(file_);
+  GeneratedFileOptions file_options;
 
   // If any indirect dependency provided extensions, it needs to be directly
   // imported so it can get merged into the root's extensions registry.
   // See the Note by CollectMinimalFileDepsContainingExtensions before
   // changing this.
-  std::vector<const FileDescriptor*> extra_files;
   for (auto& dep : deps_with_extensions) {
     if (!IsDirectDependency(dep, file_)) {
-      extra_files.push_back(dep);
+      file_options.extra_files_to_import.push_back(dep);
     }
   }
 
@@ -333,59 +333,63 @@ void FileGenerator::GenerateSource(io::Printer* p) const {
     generator->DetermineObjectiveCClassDefinitions(&fwd_decls);
   }
 
-  std::vector<std::string> ignored_warnings;
   // The generated code for oneof's uses direct ivar access, suppress the
   // warning in case developer turn that on in the context they compile the
   // generated code.
   for (const auto& generator : message_generators_) {
     if (generator->IncludesOneOfDefinition()) {
-      ignored_warnings.push_back("direct-ivar-access");
+      file_options.ignored_warnings.push_back("direct-ivar-access");
       break;
     }
   }
   if (!fwd_decls.empty()) {
-    ignored_warnings.push_back("dollar-in-identifier-extension");
+    file_options.ignored_warnings.push_back("dollar-in-identifier-extension");
   }
 
-  GenerateFile(
-      p, GeneratedFileType::kSource, ignored_warnings, extra_files, [&] {
-        if (!fwd_decls.empty()) {
-          p->Print(
-              // clang-format off
-              "#pragma mark - Objective C Class declarations\n"
-              "// Forward declarations of Objective C classes that we can use as\n"
-              "// static values in struct initializers.\n"
-              "// We don't use [Foo class] because it is not a static value.\n"
-              "$fwd_decls$\n"
-              "\n",
-              // clang-format on
-              "fwd_decls", absl::StrJoin(fwd_decls, "\n"));
-        }
+  // Enum implementation uses atomic in the generated code, so add
+  // the system import as needed.
+  if (!enum_generators_.empty()) {
+    file_options.extra_system_headers.push_back("stdatomic.h");
+  }
 
-        PrintRootImplementation(p, deps_with_extensions);
-        PrintFileDescription(p);
+  GenerateFile(p, GeneratedFileType::kSource, file_options, [&] {
+    if (!fwd_decls.empty()) {
+      p->Print(
+          // clang-format off
+          "#pragma mark - Objective-C Class declarations\n"
+          "// Forward declarations of Objective-C classes that we can use as\n"
+          "// static values in struct initializers.\n"
+          "// We don't use [Foo class] because it is not a static value.\n"
+          "$fwd_decls$\n"
+          "\n",
+          // clang-format on
+          "fwd_decls", absl::StrJoin(fwd_decls, "\n"));
+    }
 
-        for (const auto& generator : enum_generators_) {
-          generator->GenerateSource(p);
-        }
-        for (const auto& generator : message_generators_) {
-          generator->GenerateSource(p);
-        }
-      });
+    PrintRootImplementation(p, deps_with_extensions);
+    PrintFileDescription(p);
+
+    for (const auto& generator : enum_generators_) {
+      generator->GenerateSource(p);
+    }
+    for (const auto& generator : message_generators_) {
+      generator->GenerateSource(p);
+    }
+  });
 }
 
 void FileGenerator::GenerateGlobalSource(io::Printer* p) const {
   std::vector<const FileDescriptor*> deps_with_extensions =
       common_state_->CollectMinimalFileDepsContainingExtensions(file_);
+  GeneratedFileOptions file_options;
 
   // If any indirect dependency provided extensions, it needs to be directly
   // imported so it can get merged into the root's extensions registry.
   // See the Note by CollectMinimalFileDepsContainingExtensions before
   // changing this.
-  std::vector<const FileDescriptor*> extra_files;
   for (auto& dep : deps_with_extensions) {
     if (!IsDirectDependency(dep, file_)) {
-      extra_files.push_back(dep);
+      file_options.extra_files_to_import.push_back(dep);
     }
   }
 
@@ -394,32 +398,34 @@ void FileGenerator::GenerateGlobalSource(io::Printer* p) const {
     generator->DetermineObjectiveCClassDefinitions(&fwd_decls);
   }
 
-  std::vector<std::string> ignored_warnings;
   if (!fwd_decls.empty()) {
-    ignored_warnings.push_back("dollar-in-identifier-extension");
+    file_options.ignored_warnings.push_back("dollar-in-identifier-extension");
   }
 
-  GenerateFile(
-      p, GeneratedFileType::kSource, ignored_warnings, extra_files, [&] {
-        if (!fwd_decls.empty()) {
-          p->Print(
-              // clang-format off
-              "#pragma mark - Objective C Class declarations\n"
-              "// Forward declarations of Objective C classes that we can use as\n"
+  GenerateFile(p, GeneratedFileType::kSource, file_options, [&] {
+    if (!fwd_decls.empty()) {
+      p->Print(
+          // clang-format off
+              "#pragma mark - Objective-C Class declarations\n"
+              "// Forward declarations of Objective-C classes that we can use as\n"
               "// static values in struct initializers.\n"
               "// We don't use [Foo class] because it is not a static value.\n"
               "$fwd_decls$\n"
               "\n",
-              // clang-format on
-              "fwd_decls", absl::StrJoin(fwd_decls, "\n"));
-        }
+          // clang-format on
+          "fwd_decls", absl::StrJoin(fwd_decls, "\n"));
+    }
 
-        PrintRootImplementation(p, deps_with_extensions);
-      });
+    PrintRootImplementation(p, deps_with_extensions);
+  });
 }
 
 void FileGenerator::GenerateSourceForEnums(io::Printer* p) const {
-  GenerateFile(p, GeneratedFileType::kSource, [&] {
+  // Enum implementation uses atomic in the generated code.
+  GeneratedFileOptions file_options;
+  file_options.extra_system_headers.push_back("stdatomic.h");
+
+  GenerateFile(p, GeneratedFileType::kSource, file_options, [&] {
     for (const auto& generator : enum_generators_) {
       generator->GenerateSource(p);
     }
@@ -432,24 +438,24 @@ void FileGenerator::GenerateSourceForMessage(int idx, io::Printer* p) const {
   absl::btree_set<std::string> fwd_decls;
   generator->DetermineObjectiveCClassDefinitions(&fwd_decls);
 
-  std::vector<std::string> ignored_warnings;
+  GeneratedFileOptions file_options;
   // The generated code for oneof's uses direct ivar access, suppress the
   // warning in case developer turn that on in the context they compile the
   // generated code.
   if (generator->IncludesOneOfDefinition()) {
-    ignored_warnings.push_back("direct-ivar-access");
+    file_options.ignored_warnings.push_back("direct-ivar-access");
   }
 
-  GenerateFile(p, GeneratedFileType::kSource, ignored_warnings, {}, [&] {
+  GenerateFile(p, GeneratedFileType::kSource, file_options, [&] {
     if (!fwd_decls.empty()) {
       p->Print(
           // clang-format off
-              "#pragma mark - Objective C Class declarations\n"
-              "// Forward declarations of Objective C classes that we can use as\n"
-              "// static values in struct initializers.\n"
-              "// We don't use [Foo class] because it is not a static value.\n"
-              "$fwd_decls$\n"
-              "\n",
+          "#pragma mark - Objective-C Class declarations\n"
+          "// Forward declarations of Objective-C classes that we can use as\n"
+          "// static values in struct initializers.\n"
+          "// We don't use [Foo class] because it is not a static value.\n"
+          "$fwd_decls$\n"
+          "\n",
           // clang-format on
           "fwd_decls", absl::StrJoin(fwd_decls, "\n"));
     }
@@ -459,11 +465,9 @@ void FileGenerator::GenerateSourceForMessage(int idx, io::Printer* p) const {
   });
 }
 
-void FileGenerator::GenerateFile(
-    io::Printer* p, GeneratedFileType file_type,
-    const std::vector<std::string>& ignored_warnings,
-    const std::vector<const FileDescriptor*>& extra_files_to_import,
-    std::function<void()> body) const {
+void FileGenerator::GenerateFile(io::Printer* p, GeneratedFileType file_type,
+                                 const GeneratedFileOptions& file_options,
+                                 std::function<void()> body) const {
   ImportWriter import_writer(
       generation_options_.generate_for_named_framework,
       generation_options_.named_framework_to_proto_path_mappings_path,
@@ -514,7 +518,7 @@ void FileGenerator::GenerateFile(
       break;
   }
 
-  for (const auto& dep : extra_files_to_import) {
+  for (const auto& dep : file_options.extra_files_to_import) {
     import_writer.AddFile(dep, header_extension);
   }
 
@@ -549,10 +553,11 @@ void FileGenerator::GenerateFile(
       "google_protobuf_objc_version",
       absl::StrCat(GOOGLE_PROTOBUF_OBJC_VERSION));
 
-  // Enum implementation uses atomic in the generated code, so add
-  // the system import as needed.
-  if (file_type == GeneratedFileType::kSource && !enum_generators_.empty()) {
-    p->Print("#import <stdatomic.h>\n\n");
+  if (!file_options.extra_system_headers.empty()) {
+    for (const auto& system_header : file_options.extra_system_headers) {
+      p->Print("#import <$header$>\n", "header", system_header);
+    }
+    p->Print("\n");
   }
 
   import_writer.PrintFileImports(p);
@@ -564,7 +569,7 @@ void FileGenerator::GenerateFile(
       "#pragma clang diagnostic push\n"
       "#pragma clang diagnostic ignored \"-Wdeprecated-declarations\"\n");
   // clang-format on
-  for (const auto& warning : ignored_warnings) {
+  for (const auto& warning : file_options.ignored_warnings) {
     p->Print("#pragma clang diagnostic ignored \"-W$warning$\"\n", "warning",
              warning);
   }

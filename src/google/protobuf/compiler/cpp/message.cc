@@ -730,11 +730,14 @@ void MessageGenerator::GenerateFieldAccessorDeclarations(io::Printer* p) {
           }},
          {"clearer",
           [&] {
-            p->Emit({Sub("clear_name", absl::StrCat("clear_", name))
-                         .AnnotatedAs(field)},
-                    R"cc(
-                      $deprecated_attr $void $clear_name$() $impl$;
-                    )cc");
+            p->Emit(
+                {Sub("clear_name", absl::StrCat("clear_", name))
+                     .AnnotatedAs(
+                         {field,
+                          ::google::protobuf::io::AnnotationCollector::Semantic::kSet})},
+                R"cc(
+                  $deprecated_attr $void $clear_name$() $impl$;
+                )cc");
           }},
          {"accessors",
           [&] {

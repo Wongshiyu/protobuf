@@ -37,11 +37,9 @@
 #include <tuple>
 #include <vector>
 
-#include "google/protobuf/descriptor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/absl_log.h"
 #include "absl/memory/memory.h"
-#include "absl/strings/substitute.h"
 #include "absl/types/optional.h"
 #include "google/protobuf/compiler/cpp/field_generators/generators.h"
 #include "google/protobuf/compiler/cpp/helpers.h"
@@ -58,7 +56,7 @@ namespace {
 using ::google::protobuf::internal::WireFormat;
 using ::google::protobuf::internal::WireFormatLite;
 using Sub = ::google::protobuf::io::Printer::Sub;
-using Annotation = ::google::protobuf::GeneratedCodeInfo::Annotation;
+using Semantic = ::google::protobuf::io::AnnotationCollector::Semantic;
 
 // For encodings with fixed sizes, returns that size in bytes.
 absl::optional<size_t> FixedSize(FieldDescriptor::Type type) {
@@ -199,7 +197,7 @@ void SingularPrimitive::GenerateAccessorDeclarations(io::Printer* p) const {
       {
           Sub("name", p->LookupVar("name")).AnnotatedAs(field_),
           Sub("set_name", absl::StrCat("set_", p->LookupVar("name")))
-              .AnnotatedAs(field_),
+              .AnnotatedAs({field_, Semantic::kSet}),
           Sub("_internal_name",
               absl::StrCat("_internal_", p->LookupVar("name")))
               .AnnotatedAs(field_),
@@ -403,11 +401,11 @@ void RepeatedPrimitive::GenerateAccessorDeclarations(io::Printer* p) const {
       {
           Sub("name", p->LookupVar("name")).AnnotatedAs(field_),
           Sub("set_name", absl::StrCat("set_", p->LookupVar("name")))
-              .AnnotatedAs(field_),
+              .AnnotatedAs({field_, Semantic::kSet}),
           Sub("add_name", absl::StrCat("add_", p->LookupVar("name")))
-              .AnnotatedAs(field_),
+              .AnnotatedAs({field_, Semantic::kSet}),
           Sub("mutable_name", absl::StrCat("mutable_", p->LookupVar("name")))
-              .AnnotatedAs(field_),
+              .AnnotatedAs({field_, Semantic::kAlias}),
 
           Sub("_internal_name",
               absl::StrCat("_internal_", p->LookupVar("name")))

@@ -325,14 +325,20 @@ void RepeatedEnumFieldGenerator::GenerateAccessorDeclarations(
       "::$proto_ns$::RepeatedField<int>* "
       "${1$_internal_mutable_$name$$}$();\n"
       "public:\n"
-      "$deprecated_attr$$type$ ${1$$name$$}$(int index) const;\n"
-      "$deprecated_attr$void ${1$set_$name$$}$(int index, $type$ value);\n"
-      "$deprecated_attr$void ${1$add_$name$$}$($type$ value);\n"
+      "$deprecated_attr$$type$ ${1$$name$$}$(int index) const;\n",
+      descriptor_);
+  format("$deprecated_attr$void ${1$set_$name$$}$(int index, $type$ value);\n",
+         std::make_tuple(descriptor_, GeneratedCodeInfo::Annotation::SET));
+  format("$deprecated_attr$void ${1$add_$name$$}$($type$ value);\n",
+         std::make_tuple(descriptor_, GeneratedCodeInfo::Annotation::SET));
+  format(
       "$deprecated_attr$const ::$proto_ns$::RepeatedField<int>& "
-      "${1$$name$$}$() const;\n"
+      "${1$$name$$}$() const;\n",
+      descriptor_);
+  format(
       "$deprecated_attr$::$proto_ns$::RepeatedField<int>* "
       "${1$mutable_$name$$}$();\n",
-      descriptor_);
+      std::make_tuple(descriptor_, GeneratedCodeInfo::Annotation::ALIAS));
 }
 
 void RepeatedEnumFieldGenerator::GenerateInlineAccessorDefinitions(

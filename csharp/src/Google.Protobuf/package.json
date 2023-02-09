@@ -1,0 +1,23 @@
+{
+	"name": "com.google.protobuf-csharp",
+	"displayName": "Google Protobuf",
+	"description": "Google Protobuf csharp",
+	"version": "3.12.1",
+	"unity": "2018.3",
+	"author": {
+		"name": "Google",
+		"url": "https://github.com/protocolbuffers/protobuf/"
+	},
+	"dependencies": {
+	},
+	"repository": {
+		"type": "git",
+		"url": "git@github.com:protocolbuffers/protobuf.git"
+	},
+	"keywords": [
+		"google",
+		"protobuf"
+	],
+	"license": "SEE LICENSE IN LICENSE",
+	"homepage": "https://github.com/protocolbuffers/protobuf/blob/main/README.md"
+}
